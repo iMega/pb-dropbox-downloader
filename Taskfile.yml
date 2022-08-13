@@ -1,20 +1,51 @@
 version: '3'
 
+env:
+  SDK_IMAGE: 5keeve/pocketbook-go-sdk:6.3.0-b288-v1
+  APP_NAME: pb-dropbox-downloader.app
+  UI_ENTRYPOINT: cmd/ui/main.go
+  CLI_ENTRYPOINT: cmd/cli/main.go
+  VERSION:
+    sh: git describe
+  LDFLAGS: -ldflags="-X pb-dropbox-downloader/internal/app.version={{ .VERSION  | upper }} -s -w"
+
 tasks:
-  default: go run .
-
-  build-cli:
-    env:
-      GOOS: linux
-      GOARCH: arm
-      GOARM: 5
+  default:
     cmds:
-      - go build -ldflags="-s -w" -o pb-dropbox-downloader.app .
+      - task: run
 
-  build: docker run --rm -v ${PWD}:/app 5keeve/pocketbook-go-sdk:6.3.0-b288-v1 build -v -tags=UI -ldflags="-s -w" -o pb-dropbox-downloader.app .
+  run: go run {{.LDFLAGS}} -tags=debug {{ .CLI_ENTRYPOINT }}
+  run:rm:
+    cmds:
+      - task: run
+      - rm -rf ./testing/testdata/internal/dropbox
 
-  lint: golangci-lint run ./...
+  build:debug:
+    cmds:
+      - go build -tags=debug {{.LDFLAGS}} -o {{.APP_NAME}} {{.CLI_ENTRYPOINT}}
 
-  test-local: go test ./...
+  build:internal: docker run --rm -v ${PWD}:/app {{.SDK_IMAGE}} build -v {{.LDFLAGS}} -o {{.APP_NAME}} /app/{{.ENTRYPOINT}}
 
-  test: docker run --rm -it -v ${PWD}:/app golang bash -c 'cd /app; go test -cover -v ./...'
+  build:ci:
+    cmds:
+      - go build {{.LDFLAGS}} -o {{.APP_NAME}} {{.CLI_ENTRYPOINT}}
+
+  build:
+    deps:
+      - task: build:internal
+        vars:
+          ENTRYPOINT: '{{.UI_ENTRYPOINT}}'
+
+  build:cli:
+    deps:
+      - task: build:internal
+        vars:
+          ENTRYPOINT: '{{.CLI_ENTRYPOINT}}'
+
+  lint:local: golangci-lint run ./...
+
+  test:local: go test ./internal/...
+
+  test:ci: go test -cover -coverprofile='coverage.xml' -covermode=atomic -v ./internal/...
+
+  test: docker run --rm -it -v ${PWD}:/app golang:1.17.2 bash -c "cd /app; go test -cover -v ./internal/..."

@@ -1,6 +1,7 @@
-package main
+package app
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -16,23 +17,24 @@ import (
 	dropboxLib "github.com/tj/go-dropbox"
 )
 
-const (
-	perm             = 0755
-	fatalExitCode    = 500
+var (
 	parallelism      = 3
 	logFileName      = "pb-dropbox-downloader.log"
 	databaseFileName = "pb-dropbox-downloader.bin"
 	configFileName   = "pb-dropbox-downloader-config.json"
+	version          = "X.X.X"
 )
 
-func mainInternal(w io.Writer) error {
+const perm = 0755
+
+func Run(ctx context.Context, w io.Writer) error {
 	fs := osfs.New("")
 
-	if err := os.MkdirAll(pocketbook.ConfigPath(), perm); err != nil {
+	if err := fs.MkdirAll(pocketbook.ConfigPath(), perm); err != nil {
 		return fmt.Errorf("failed to create config dir: %w", err)
 	}
 
-	if err := os.MkdirAll(pocketbook.Share(), perm); err != nil {
+	if err := fs.MkdirAll(pocketbook.Share(), perm); err != nil {
 		return fmt.Errorf("failed to create share dir: %w", err)
 	}
 
@@ -49,8 +51,10 @@ func mainInternal(w io.Writer) error {
 		return fmt.Errorf("failed loaded configuration: %w", err)
 	}
 
-	dropboxLibClient := dropboxLib.New(dropboxLib.NewConfig(syncConfig.AccessToken))
-	dropboxClient := dropbox.NewClient(dropbox.WithGoDropbox(dropboxLibClient))
+	dropboxClient := dropbox.NewClient(dropbox.WithGoDropbox(
+		dropboxLib.New(dropboxLib.NewConfig(syncConfig.AccessToken)),
+	))
+
 	storage := datastorage.NewFileStorage(
 		datastorage.WithFilesystem(fs),
 		datastorage.WithConfigPath(pocketbook.Share(databaseFileName)),
@@ -62,6 +66,7 @@ func mainInternal(w io.Writer) error {
 		synchroniser.WithDropboxClient(dropboxClient),
 		synchroniser.WithOutput(w),
 		synchroniser.WithMaxParallelism(parallelism),
+		synchroniser.WithVersion(version),
 	)
 
 	folder := pocketbook.Internal(syncConfig.Folder)
@@ -69,14 +74,16 @@ func mainInternal(w io.Writer) error {
 		folder = pocketbook.SdCard(syncConfig.Folder)
 	}
 
-	err = synchroniser.Sync(folder, syncConfig.AllowDeleteFiles)
+	err = synchroniser.Sync(ctx, folder, syncConfig.AllowDeleteFiles)
 	if err != nil {
 		return fmt.Errorf("synchronization finished with error: %w", err)
 	}
 
-	cmd := exec.Command("/bin/killall", "scanner.app")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to execute command: %w", err)
+	fmt.Fprintln(w)
+
+	err = pocketbook.RefreshScanner(ctx)
+	if err != nil {
+		return fmt.Errorf("filed to update book list: %w", err)
 	}
 
 	return nil

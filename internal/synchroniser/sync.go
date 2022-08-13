@@ -2,6 +2,7 @@
 package synchroniser
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"pb-dropbox-downloader/internal/dropbox"
@@ -9,32 +10,36 @@ import (
 )
 
 // Sync synchronies folder with application folder in drop box.
-func (ds *DropboxSynchroniser) Sync(folder string, remove bool) error {
-	ds.infoHeader()
+func (s *DropboxSynchroniser) Sync(ctx context.Context, folder string, remove bool) error {
+	s.infoHeader()
+
+	if err := s.files.MkdirAll(folder, os.ModePerm); err != nil {
+		return err
+	}
 
 	normalizedFolder := filepath.ToSlash(folder)
-	files, err := ds.getLocalFiles(normalizedFolder)
+	files, err := s.getLocalFiles(normalizedFolder)
 	if err != nil {
 		return err
 	}
 
-	filesToDownload, err := ds.getFilesToDownload()
+	filesToDownload, err := s.getFilesToDownload()
 	if err != nil {
 		return err
 	}
 
-	err = ds.download(normalizedFolder, filesToDownload)
+	err = s.download(ctx, normalizedFolder, filesToDownload)
 	if err != nil {
 		return err
 	}
 
-	err = ds.storage.Commit()
+	err = s.storage.Commit()
 	if err != nil {
 		return err
 	}
 
 	if remove {
-		err = ds.deleteFiles(normalizedFolder, files)
+		err = s.deleteFiles(normalizedFolder, files)
 		if err != nil {
 			return err
 		}
@@ -43,13 +48,13 @@ func (ds *DropboxSynchroniser) Sync(folder string, remove bool) error {
 	return nil
 }
 
-func (ds *DropboxSynchroniser) getLocalFiles(folder string) ([]os.FileInfo, error) {
-	files, err := ds.files.ReadDir(folder)
+func (s *DropboxSynchroniser) getLocalFiles(folder string) ([]os.FileInfo, error) {
+	files, err := s.files.ReadDir(folder)
 	if err != nil {
 		return nil, err
 	}
 
-	err = ds.refreshStorage(files)
+	err = s.refreshStorage(files)
 	if err != nil {
 		return nil, err
 	}
@@ -57,15 +62,15 @@ func (ds *DropboxSynchroniser) getLocalFiles(folder string) ([]os.FileInfo, erro
 	return files, nil
 }
 
-func (ds *DropboxSynchroniser) getFilesToDownload() ([]dropbox.RemoteFile, error) {
-	remoteFiles, err := ds.dropbox.GetFiles()
+func (s *DropboxSynchroniser) getFilesToDownload() ([]dropbox.RemoteFile, error) {
+	remoteFiles, err := s.dropbox.GetFiles()
 	if err != nil {
 		return nil, err
 	}
 
 	filesToDownload := []dropbox.RemoteFile{}
 	for _, remoteFile := range remoteFiles {
-		if hash, err := ds.storage.Get(remoteFile.Path); err == nil {
+		if hash, err := s.storage.Get(remoteFile.Path); err == nil {
 			if strings.EqualFold(hash, remoteFile.Hash) {
 				continue
 			}
@@ -77,8 +82,8 @@ func (ds *DropboxSynchroniser) getFilesToDownload() ([]dropbox.RemoteFile, error
 	return filesToDownload, nil
 }
 
-func (ds *DropboxSynchroniser) refreshStorage(files []os.FileInfo) error {
-	storageFiles, err := ds.storage.ToMap()
+func (s *DropboxSynchroniser) refreshStorage(files []os.FileInfo) error {
+	storageFiles, err := s.storage.ToMap()
 	if err != nil {
 		return err
 	}
@@ -87,7 +92,7 @@ func (ds *DropboxSynchroniser) refreshStorage(files []os.FileInfo) error {
 		return fileSliceContins(files, key)
 	})
 
-	ds.storage.FromMap(filteredMap)
+	s.storage.FromMap(filteredMap)
 
-	return ds.storage.Commit()
+	return s.storage.Commit()
 }

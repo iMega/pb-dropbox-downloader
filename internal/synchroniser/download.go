@@ -4,12 +4,10 @@ package synchroniser
 import (
 	"context"
 	"io/ioutil"
-	"log"
 	"path/filepath"
 	"pb-dropbox-downloader/internal/dropbox"
 	"pb-dropbox-downloader/internal/utils"
 
-	"github.com/c2h5oh/datasize"
 	"github.com/hashicorp/go-multierror"
 
 	"golang.org/x/sync/errgroup"
@@ -17,19 +15,32 @@ import (
 
 type dataChannel = chan dropbox.RemoteFile
 
-func (ds *DropboxSynchroniser) download(folder string, files []dropbox.RemoteFile) error {
+type printInfo struct {
+	name    string
+	size    uint64
+	success bool
+}
+
+func (s *DropboxSynchroniser) download(ctx context.Context, folder string, files []dropbox.RemoteFile) error {
 	if len(files) == 0 {
-		ds.printf("no files to download")
+		s.printf("No files to download")
+
+		return nil
 	}
 
-	ds.printf("founded %d files to download", len(files))
+	s.printf("Found %d files to download:\n", len(files))
 
 	source := make(dataChannel)
+	results := make(chan printInfo)
 
-	tasksGroup, _ := errgroup.WithContext(context.Background())
-	for i := 0; i < calculateTheadsCount(ds.maxParallelism, files); i++ {
-		tasksGroup.Go(ds.createDownloadThread(folder, source))
+	tasksGroup, _ := errgroup.WithContext(ctx)
+
+	for i := 0; i < calculateTheadsCount(s.maxParallelism, files); i++ {
+		tasksGroup.Go(s.createDownloadThread(results, folder, source))
 	}
+
+	go s.printerThread(results)
+	defer close(results)
 
 	for _, file := range files {
 		source <- file
@@ -40,30 +51,34 @@ func (ds *DropboxSynchroniser) download(folder string, files []dropbox.RemoteFil
 	return tasksGroup.Wait()
 }
 
-func (ds *DropboxSynchroniser) createDownloadThread(folder string, source dataChannel) func() error {
+func substring(s string, num int) string {
+	chars := []rune(s)
+
+	return string(chars[:num])
+}
+
+func (s *DropboxSynchroniser) createDownloadThread(target chan printInfo, folder string, source dataChannel) func() error {
 	return func() error {
 		var result *multierror.Error
 
 		for file := range source {
-			err := ds.downloadFile(file, folder)
-			if err != nil {
-				ds.printf("%s .... [filed]", filepath.Base(file.Path))
-				log.Println(err)
+			fileName := filepath.Base(file.Path)
+			if err := s.downloadFile(file, folder); err != nil {
+				target <- printInfo{name: fileName}
 
 				result = multierror.Append(result, err)
 
 				continue
 			}
 
-			ds.printf("%s (%s) .... [ok]", filepath.Base(file.Path), datasize.ByteSize(file.Size).HumanReadable())
-			err = ds.storage.Add(file.Path, file.Hash)
-			if err != nil {
-				ds.printf("%s .... [filed]", filepath.Base(file.Path))
-				log.Println(err)
+			target <- printInfo{
+				name:    fileName,
+				size:    file.Size,
+				success: true,
+			}
 
+			if err := s.storage.Add(file.Path, file.Hash); err != nil {
 				result = multierror.Append(result, err)
-
-				continue
 			}
 		}
 
@@ -71,8 +86,8 @@ func (ds *DropboxSynchroniser) createDownloadThread(folder string, source dataCh
 	}
 }
 
-func (ds *DropboxSynchroniser) downloadFile(file dropbox.RemoteFile, folder string) error {
-	fileReader, err := ds.dropbox.DownloadFile(file.Path)
+func (s *DropboxSynchroniser) downloadFile(file dropbox.RemoteFile, folder string) error {
+	fileReader, err := s.dropbox.DownloadFile(file.Path)
 	if err != nil {
 		return err
 	}
@@ -84,7 +99,7 @@ func (ds *DropboxSynchroniser) downloadFile(file dropbox.RemoteFile, folder stri
 		return err
 	}
 
-	localFile, err := ds.files.Create(utils.JoinPath(folder, file.Path))
+	localFile, err := s.files.Create(utils.JoinPath(folder, file.Path))
 	if err != nil {
 		return err
 	}
