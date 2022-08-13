@@ -8,7 +8,9 @@ package pbsdk
 import "C"
 
 const (
-	FlashDir  = C.FLASHDIR
-	SDCardDir = C.SDCARDDIR
-	ConfigDir = C.CONFIGPATH
+	FlashDir     = C.FLASHDIR
+	SDCardDir    = C.SDCARDDIR
+	GlobalConfig = C.GLOBALCONFIGFILE
+	ConfigDir    = C.CONFIGPATH
+	LangDir      = C.USERLANGPATH
 )
