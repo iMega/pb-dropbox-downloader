@@ -15,6 +15,8 @@
 package httpclient
 
 import (
+	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -24,6 +26,17 @@ import (
 )
 
 func New(conf Config, log *logger.Logger) *http.Client {
+	tr := &http.Transport{
+		Proxy:               http.ProxyFromEnvironment,
+		MaxIdleConns:        conf.MaxIdleConns,
+		MaxConnsPerHost:     conf.MaxConnsPerHost,
+		MaxIdleConnsPerHost: conf.MaxIdleConnsPerHost,
+		DialContext: (&net.Dialer{
+			Timeout: conf.DialerTimeout,
+		}).DialContext,
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
 	return &http.Client{
 		Timeout: conf.Timeout,
 		Transport: &userAgent{
@@ -31,17 +44,33 @@ func New(conf Config, log *logger.Logger) *http.Client {
 			RoundTriper: &retrier{
 				Retrier: NewDefaultRetrier(conf),
 				Log:     log,
-				RoundTriper: &http.Transport{
-					MaxIdleConns:        conf.MaxIdleConns,
-					MaxConnsPerHost:     conf.MaxConnsPerHost,
-					MaxIdleConnsPerHost: conf.MaxIdleConnsPerHost,
-					DialContext: (&net.Dialer{
-						Timeout: conf.DialerTimeout,
-					}).DialContext,
+				RoundTriper: &testHost{
+					Value:       conf.TestHost,
+					RoundTriper: tr,
 				},
 			},
 		},
 	}
+}
+
+type testHost struct {
+	Value       string
+	RoundTriper http.RoundTripper
+}
+
+func (t *testHost) RoundTrip(req *http.Request) (*http.Response, error) {
+	if t.Value != "" {
+		req = req.Clone(req.Context())
+		req.URL.Scheme = "http"
+		req.URL.Host = t.Value
+	}
+
+	resp, err := t.RoundTriper.RoundTrip(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call TransportWithTestHost, %w", err)
+	}
+
+	return resp, nil
 }
 
 var errTemporaryNetworkProblem = errors.New("temporary network problem")
@@ -55,9 +84,19 @@ type retrier struct {
 func (t *retrier) RoundTrip(req *http.Request) (*http.Response, error) {
 	var resp *http.Response
 
+	ctx, cancel := context.WithCancel(req.Context())
+	defer cancel()
+
 	operation := func() error {
 		r, err := t.RoundTriper.RoundTrip(req)
 		if err != nil {
+			var netDNSError *net.DNSError
+			if errors.As(err, &netDNSError) {
+				cancel()
+
+				return fmt.Errorf("%w", err)
+			}
+
 			return fmt.Errorf("failed to call TransportWithRetrier, %w", err)
 		}
 
@@ -74,7 +113,7 @@ func (t *retrier) RoundTrip(req *http.Request) (*http.Response, error) {
 		t.Log.Infof("%s, retrying in %s...", err, next)
 	}
 
-	if err := t.Retrier.Retry(req.Context(), operation, notifyFn); err != nil {
+	if err := t.Retrier.Retry(ctx, operation, notifyFn); err != nil {
 		return nil, fmt.Errorf("%w", err)
 	}
 

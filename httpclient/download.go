@@ -14,16 +14,35 @@
 
 package httpclient
 
-import "time"
+import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+)
 
-type Config struct {
-	TestHost              string
-	UserAgent             string
-	Timeout               time.Duration
-	MaxIdleConns          int
-	MaxConnsPerHost       int
-	MaxIdleConnsPerHost   int
-	DialerTimeout         time.Duration
-	BackoffMaxInterval    time.Duration
-	BackoffMaxElapsedTime time.Duration
+type DownloadArgs struct {
+	URL    string
+	Client *http.Client
+	Src    io.Writer
+}
+
+func Download(ctx context.Context, args DownloadArgs) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, args.URL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create a request, %w", err)
+	}
+
+	resp, err := args.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send a request, %w", err)
+	}
+
+	defer resp.Body.Close()
+
+	if _, err := io.Copy(args.Src, resp.Body); err != nil {
+		return fmt.Errorf("failed to copy a data, %w", err)
+	}
+
+	return nil
 }

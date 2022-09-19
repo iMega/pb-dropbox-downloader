@@ -14,16 +14,20 @@
 
 package httpclient
 
-import "time"
+import (
+	"fmt"
+	"net/http"
+)
 
-type Config struct {
-	TestHost              string
-	UserAgent             string
-	Timeout               time.Duration
-	MaxIdleConns          int
-	MaxConnsPerHost       int
-	MaxIdleConnsPerHost   int
-	DialerTimeout         time.Duration
-	BackoffMaxInterval    time.Duration
-	BackoffMaxElapsedTime time.Duration
+func CheckConnection(client *http.Client, url string) (bool, error) {
+	resp, err := client.Get(url)
+	if err != nil {
+		return false, fmt.Errorf("failed to get a request, %w", err)
+	}
+
+	if resp.StatusCode != http.StatusNoContent {
+		return false, fmt.Errorf("status code isn't 204")
+	}
+
+	return true, nil
 }
