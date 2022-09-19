@@ -2,7 +2,7 @@ package synchroniser
 
 import (
 	"os"
-	"pb-dropbox-downloader/internal/dropbox"
+	"pb-dropbox-downloader/dropbox"
 	"strings"
 )
 
@@ -16,8 +16,12 @@ func fileSliceContins(collection []os.FileInfo, value string) bool {
 	return false
 }
 
-func filterMapBy(data map[string]string, predicate func(string, string) bool) map[string]string {
+func filterMapBy(
+	data map[string]string,
+	predicate func(string, string) bool,
+) map[string]string {
 	result := make(map[string]string)
+
 	for key, value := range data {
 		if predicate(key, value) {
 			result[key] = value

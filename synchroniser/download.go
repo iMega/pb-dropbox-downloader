@@ -3,13 +3,11 @@ package synchroniser
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"path/filepath"
-	"pb-dropbox-downloader/internal/dropbox"
-	"pb-dropbox-downloader/internal/utils"
+	"pb-dropbox-downloader/dropbox"
 
 	"github.com/hashicorp/go-multierror"
-
 	"golang.org/x/sync/errgroup"
 )
 
@@ -21,7 +19,11 @@ type printInfo struct {
 	success bool
 }
 
-func (s *DropboxSynchroniser) download(ctx context.Context, folder string, files []dropbox.RemoteFile) error {
+func (s *DropboxSynchroniser) download(
+	ctx context.Context,
+	folder string,
+	files []dropbox.RemoteFile,
+) error {
 	if len(files) == 0 {
 		s.printf("No files to download")
 
@@ -43,6 +45,7 @@ func (s *DropboxSynchroniser) download(ctx context.Context, folder string, files
 	defer close(results)
 
 	for _, file := range files {
+		s.progress.Increase(filepath.Base(file.Path))
 		source <- file
 	}
 
@@ -57,7 +60,11 @@ func substring(s string, num int) string {
 	return string(chars[:num])
 }
 
-func (s *DropboxSynchroniser) createDownloadThread(target chan printInfo, folder string, source dataChannel) func() error {
+func (s *DropboxSynchroniser) createDownloadThread(
+	target chan printInfo,
+	folder string,
+	source dataChannel,
+) func() error {
 	return func() error {
 		var result *multierror.Error
 
@@ -86,7 +93,10 @@ func (s *DropboxSynchroniser) createDownloadThread(target chan printInfo, folder
 	}
 }
 
-func (s *DropboxSynchroniser) downloadFile(file dropbox.RemoteFile, folder string) error {
+func (s *DropboxSynchroniser) downloadFile(
+	file dropbox.RemoteFile,
+	folder string,
+) error {
 	fileReader, err := s.dropbox.DownloadFile(file.Path)
 	if err != nil {
 		return err
@@ -94,12 +104,12 @@ func (s *DropboxSynchroniser) downloadFile(file dropbox.RemoteFile, folder strin
 
 	defer fileReader.Close()
 
-	data, err := ioutil.ReadAll(fileReader)
+	data, err := io.ReadAll(fileReader)
 	if err != nil {
 		return err
 	}
 
-	localFile, err := s.files.Create(utils.JoinPath(folder, file.Path))
+	localFile, err := s.files.Create(filepath.Join(folder, file.Path))
 	if err != nil {
 		return err
 	}

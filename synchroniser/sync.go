@@ -5,12 +5,16 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"pb-dropbox-downloader/internal/dropbox"
+	"pb-dropbox-downloader/dropbox"
 	"strings"
 )
 
 // Sync synchronies folder with application folder in drop box.
-func (s *DropboxSynchroniser) Sync(ctx context.Context, folder string, remove bool) error {
+func (s *DropboxSynchroniser) Sync(
+	ctx context.Context,
+	folder string,
+	remove bool,
+) error {
 	s.infoHeader()
 
 	if err := s.files.MkdirAll(folder, os.ModePerm); err != nil {
@@ -27,6 +31,8 @@ func (s *DropboxSynchroniser) Sync(ctx context.Context, folder string, remove bo
 	if err != nil {
 		return err
 	}
+
+	s.progress.SetTotal(len(filesToDownload))
 
 	err = s.download(ctx, normalizedFolder, filesToDownload)
 	if err != nil {

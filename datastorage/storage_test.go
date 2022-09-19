@@ -3,7 +3,7 @@ package datastorage_test
 import (
 	"encoding/json"
 	"errors"
-	"pb-dropbox-downloader/internal/datastorage"
+	"pb-dropbox-downloader/datastorage"
 	"pb-dropbox-downloader/testing/mocks"
 	"pb-dropbox-downloader/testing/testutils"
 	"testing"

@@ -2,7 +2,7 @@ package synchroniser
 
 import (
 	"io"
-	"pb-dropbox-downloader/internal/dropbox"
+	"pb-dropbox-downloader/dropbox"
 )
 
 // DataStorage interface to storage key-value data.

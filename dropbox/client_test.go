@@ -3,7 +3,7 @@ package dropbox_test
 import (
 	"errors"
 	"io/ioutil"
-	"pb-dropbox-downloader/internal/dropbox"
+	"pb-dropbox-downloader/dropbox"
 	"pb-dropbox-downloader/internal/utils"
 	"pb-dropbox-downloader/testing/mocks"
 	"strings"
