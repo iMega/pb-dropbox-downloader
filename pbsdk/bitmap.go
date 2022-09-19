@@ -20,16 +20,33 @@ package pbsdk
 #cgo LDFLAGS: -pthread -lpthread -linkview
 */
 import "C" //nolint:typecheck
+import "image"
 
-const (
-	FlashDir  string = string(C.FLASHDIR)
-	SDCardDir string = string(C.SDCARDDIR)
-	ConfigDir string = string(C.CONFIGPATH)
-	LangDir   string = string(C.USERLANGPATH)
-	CacheDir  string = string(C.CACHEPATH)
-	AppDir    string = string(C.GAMEPATH)
+type Bitmap struct {
+	Src *C.ibitmap
+}
 
-	GlobalConfig string = string(C.GLOBALCONFIGFILE)
+func (bm *Bitmap) Size() image.Point {
+	return image.Pt(int(bm.Src.width), int(bm.Src.height))
+}
 
-	NetAgent string = string(C.NETAGENT)
-)
+func LoadBitmap(filename string) *Bitmap {
+	bm := C.LoadBitmap(C.CString(filename))
+	if bm == nil {
+		return nil
+	}
+
+	return &Bitmap{Src: bm}
+}
+
+func DrawBitmap(x, y int, bm *Bitmap) {
+	C.DrawBitmap(C.int(x), C.int(y), bm.Src)
+}
+
+func DrawBitmapRect(bm *Bitmap, x, y, w, h, flags int) {
+	C.DrawBitmapRect(C.int(x), C.int(y), C.int(w), C.int(h), bm.Src, C.int(flags))
+}
+
+func StretchBitmap(bm *Bitmap, x, y, w, h, flags int) {
+	C.StretchBitmap(C.int(x), C.int(y), C.int(w), C.int(h), bm.Src, C.int(flags))
+}

@@ -21,15 +21,20 @@ package pbsdk
 */
 import "C" //nolint:typecheck
 
-const (
-	FlashDir  string = string(C.FLASHDIR)
-	SDCardDir string = string(C.SDCARDDIR)
-	ConfigDir string = string(C.CONFIGPATH)
-	LangDir   string = string(C.USERLANGPATH)
-	CacheDir  string = string(C.CACHEPATH)
-	AppDir    string = string(C.GAMEPATH)
+func OpenProgressbar(title, text string, icon, percent int) {
+	C.OpenProgressbar(
+		C.int(icon),
+		C.CString(title),
+		C.CString(text),
+		C.int(percent),
+		nil,
+	)
+}
 
-	GlobalConfig string = string(C.GLOBALCONFIGFILE)
+func UpdateProgressbar(text string, percent int) {
+	C.UpdateProgressbar(C.CString(text), C.int(percent))
+}
 
-	NetAgent string = string(C.NETAGENT)
-)
+func CloseProgressbar() {
+	C.CloseProgressbar()
+}

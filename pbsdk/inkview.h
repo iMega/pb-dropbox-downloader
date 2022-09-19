@@ -482,7 +482,6 @@ extern "C"
 
     typedef void (*iv_menuhandler)(int index);
     typedef void (*iv_keyboardhandler)(char *text);
-    // void OpenKeyboard(const char *title, char *buffer, int maxlen, int flags, iv_keyboardhandler hproc);
     typedef void (*iv_dialoghandler)(int button);
     typedef void (*iv_timeedithandler)(long newtime);
     typedef void (*iv_fontselecthandler)(char *fontr, char *fontb, char *fonti, char *fontbi);

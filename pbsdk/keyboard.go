@@ -18,18 +18,34 @@ package pbsdk
 #include "inkview.h"
 #cgo CFLAGS: -pthread
 #cgo LDFLAGS: -pthread -lpthread -linkview
+
+void iv_keyboardhandler_cb(char *text);
 */
-import "C" //nolint:typecheck
+import "C"
+
+var keyboardInput chan string
+
+// Keyboard is a code for keyboard.
+type Keyboard int
 
 const (
-	FlashDir  string = string(C.FLASHDIR)
-	SDCardDir string = string(C.SDCARDDIR)
-	ConfigDir string = string(C.CONFIGPATH)
-	LangDir   string = string(C.USERLANGPATH)
-	CacheDir  string = string(C.CACHEPATH)
-	AppDir    string = string(C.GAMEPATH)
+	KeyboardNumeric Keyboard = Keyboard(C.KBD_NUMERIC)
 
-	GlobalConfig string = string(C.GLOBALCONFIGFILE)
-
-	NetAgent string = string(C.NETAGENT)
+	keyboardStringLength = 4
 )
+
+func OpenKeyboard(title string, buf string, kbrd Keyboard, input chan string) {
+	keyboardInput = input
+	C.OpenKeyboard(
+		C.CString(title),
+		C.CString(buf),
+		keyboardStringLength,
+		C.int(kbrd),
+		C.iv_keyboardhandler((*[0]byte)(C.iv_keyboardhandler_cb)),
+	)
+}
+
+//export iv_keyboardhandler_cb
+func iv_keyboardhandler_cb(text *C.char) {
+	keyboardInput <- C.GoString(text)
+}
