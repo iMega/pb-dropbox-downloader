@@ -1,10 +1,11 @@
-package auth
+package auth_test
 
 import (
 	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"pb-dropbox-downloader/auth"
 	"testing"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 )
 
 func Test_GetAccessToken_ReturnsToken(t *testing.T) {
-	args := TokenParameters{
+	args := auth.TokenParameters{
 		Code:         "code",
 		CodeVerifier: "code-verifier",
 		ClientID:     "client-id",
@@ -44,15 +45,15 @@ func Test_GetAccessToken_ReturnsToken(t *testing.T) {
 	)
 	defer func() { testServer.Close() }()
 
-	client := New(testServer.URL, http.DefaultClient)
+	client := auth.New(testServer.URL, http.DefaultClient)
 
 	ctx := context.Background()
 	actual, err := client.GetAccessToken(ctx, args)
 	require.NoError(t, err)
 
-	expected := ResponseToken{
+	expected := auth.ResponseToken{
 		AccessToken: "sl.BNolEfsF",
-		ExpiresIn: ExpiresIn{
+		ExpiresIn: auth.ExpiresIn{
 			Date: time.Now().Add(14400 * time.Second).Truncate(time.Millisecond),
 		},
 	}
@@ -79,14 +80,17 @@ func Test_GetAccessToken_ReturnsError(t *testing.T) {
 	)
 	defer func() { testServer.Close() }()
 
-	client := New(testServer.URL, http.DefaultClient)
-	_, err := client.GetAccessToken(context.Background(), TokenParameters{})
+	client := auth.New(testServer.URL, http.DefaultClient)
+	_, err := client.GetAccessToken(
+		context.Background(),
+		auth.TokenParameters{},
+	)
 
-	require.ErrorIs(t, err, errReturnError)
+	require.ErrorIs(t, err, auth.ErrReturnError)
 }
 
 func Test_GetRefreshToken_ReturnsToken(t *testing.T) {
-	args := TokenParameters{
+	args := auth.TokenParameters{
 		Code:         "code",
 		CodeVerifier: "code-verifier",
 		ClientID:     "client-id",
@@ -122,16 +126,16 @@ func Test_GetRefreshToken_ReturnsToken(t *testing.T) {
 	)
 	defer func() { testServer.Close() }()
 
-	client := New(testServer.URL, http.DefaultClient)
+	client := auth.New(testServer.URL, http.DefaultClient)
 
 	ctx := context.Background()
 
 	actual, err := client.GetRefreshToken(ctx, args)
 	require.NoError(t, err)
 
-	expected := ResponseToken{
+	expected := auth.ResponseToken{
 		AccessToken: "sl.BNrSdT9WP",
-		ExpiresIn: ExpiresIn{
+		ExpiresIn: auth.ExpiresIn{
 			Date: time.Now().Add(14400 * time.Second).Truncate(time.Millisecond),
 		},
 		RefreshToken: "uD_1XUXxy3Q",
@@ -159,8 +163,8 @@ func Test_GetRefreshToken_ReturnsError(t *testing.T) {
 	)
 	defer func() { testServer.Close() }()
 
-	client := New(testServer.URL, http.DefaultClient)
-	_, err := client.GetRefreshToken(context.Background(), TokenParameters{})
+	client := auth.New(testServer.URL, http.DefaultClient)
+	_, err := client.GetRefreshToken(context.Background(), auth.TokenParameters{})
 
-	require.ErrorIs(t, err, errReturnError)
+	require.ErrorIs(t, err, auth.ErrReturnError)
 }

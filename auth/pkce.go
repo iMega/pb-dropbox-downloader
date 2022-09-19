@@ -27,7 +27,7 @@ type PKCE struct {
 	CodeVerifier     string
 }
 
-func CreateAuthorizationURL(conf config.Config) PKCE {
+func CreateAuthorizationURL(conf *config.Config) PKCE {
 	codeVerifier := createCodeVerifier(conf.IsTest)
 	cv := sha256.Sum256([]byte(codeVerifier))
 	codeChallenge := encode2base64(cv[:])
@@ -39,9 +39,11 @@ func CreateAuthorizationURL(conf config.Config) PKCE {
 	}
 }
 
+const minLength = 32
+
 func createCodeVerifier(isTest bool) string {
-	data := make([]byte, 32)
-	if _, err := rand.Read(data); err != nil || isTest == true {
+	data := make([]byte, minLength)
+	if _, err := rand.Read(data); err != nil || isTest {
 		data = []byte("01234567890123456789012345678901")
 	}
 

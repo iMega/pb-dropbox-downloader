@@ -39,9 +39,14 @@ func (clt *Client) GetAccessToken(
 	args TokenParameters,
 ) (ResponseToken, error) {
 	data := url.Values{}
+
 	data.Set("grant_type", "refresh_token")
 	data.Set("client_id", args.ClientID)
 	data.Set("refresh_token", args.RefreshToken)
+
+	if args.RedirectURL != "" {
+		data.Set("redirect_uri", args.RedirectURL)
+	}
 
 	resp, err := clt.do(ctx, data)
 	if err != nil {
@@ -56,10 +61,15 @@ func (clt *Client) GetRefreshToken(
 	args TokenParameters,
 ) (ResponseToken, error) {
 	data := url.Values{}
+
 	data.Set("code", args.Code)
 	data.Set("grant_type", "authorization_code")
 	data.Set("code_verifier", args.CodeVerifier)
 	data.Set("client_id", args.ClientID)
+
+	if args.RedirectURL != "" {
+		data.Set("redirect_uri", args.RedirectURL)
+	}
 
 	resp, err := clt.do(ctx, data)
 	if err != nil {
@@ -74,9 +84,10 @@ type TokenParameters struct {
 	CodeVerifier string
 	ClientID     string
 	RefreshToken string
+	RedirectURL  string
 }
 
-var errReturnError = errors.New("returns error")
+var ErrReturnError = errors.New("returns error")
 
 func (clt *Client) do(
 	ctx context.Context,
@@ -107,7 +118,7 @@ func (clt *Client) do(
 
 	if responseToken.Error != "" {
 		return responseToken,
-			fmt.Errorf("%w: %s", errReturnError, responseToken.Error)
+			fmt.Errorf("%w: %s", ErrReturnError, responseToken.Error)
 	}
 
 	return responseToken, nil
@@ -131,7 +142,7 @@ func (exp *ExpiresIn) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("failed to unmarshal ExpiresIn, %w", err)
 	}
 
-	exp.Date = time.Now().Add(14400 * time.Second)
+	exp.Date = time.Now().Add(time.Duration(num) * time.Second)
 
 	return nil
 }
